@@ -25,3 +25,11 @@ body {
     text-wrap: balance;
   }
 }
+
+.text-black {
+  color: black !important;
+}
+
+h1, h2, h3, h4, p, ul, li {
+  color: black !important
+}
