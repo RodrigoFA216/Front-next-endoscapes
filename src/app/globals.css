@@ -33,3 +33,21 @@ body {
 h1, h2, h3, h4, p, ul, li {
   color: black !important
 }
+
+.bg-blue-500{
+  background-color: #122c4f !important;
+  color: #FbF9E4 !important;
+}
+
+.bg-blue-200{
+  background-color: #5b88b2 !important;
+  color: #FbF9E4 !important;
+}
+
+.bg-gray-200{
+  background-color: #FbF9E4 !important;
+  color: #122c4f !important;
+  border-color: #122c4f !important;
+  border-width: .1cap !important;
+}
+
