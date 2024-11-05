@@ -12,15 +12,15 @@ export default function Home() {
   });
   const [formData, setFormData] = useState({
     title: '',
-    video: null,
+    media: null,
     description: ''
   });
   const [errors, setErrors] = useState({
     title: '',
-    video: ''
+    media: ''
   });
+  const [response, setResponse] = useState(null);
 
-  // Cargar datos desde localStorage al montar el componente
   useEffect(() => {
     const storedTasks = localStorage.getItem('tasks');
     if (storedTasks) {
@@ -28,17 +28,16 @@ export default function Home() {
     }
   }, []);
 
-  // Guardar datos en localStorage cada vez que tasks cambie
   useEffect(() => {
     localStorage.setItem('tasks', JSON.stringify(tasks));
   }, [tasks]);
 
   const handleInputChange = (e) => {
     const { name, value, files } = e.target;
-    if (name === 'video') {
+    if (name === 'media') {
       setFormData({
         ...formData,
-        video: files[0]
+        media: files[0]
       });
     } else {
       setFormData({
@@ -50,18 +49,23 @@ export default function Home() {
 
   const validateForm = () => {
     let valid = true;
-    let newErrors = { title: '', video: '' };
+    let newErrors = { title: '', media: '' };
 
     if (!formData.title.trim()) {
       newErrors.title = 'El título es obligatorio.';
       valid = false;
     }
 
-    if (!formData.video) {
-      newErrors.video = 'El video es obligatorio.';
+    if (!formData.media) {
+      newErrors.media = 'El archivo es obligatorio.';
       valid = false;
-    } else if (!formData.video.type.startsWith('video/')) {
-      newErrors.video = 'Solo se permiten archivos de video.';
+    } else if (
+      !(
+        (formData.media.type === 'image/jpeg' && formData.media.name.endsWith('.jpg')) ||
+        (formData.media.type === 'video/mp4' && formData.media.name.endsWith('.mp4'))
+      )
+    ) {
+      newErrors.media = 'Solo se permiten archivos JPG para imágenes y MP4 para videos.';
       valid = false;
     }
 
@@ -72,12 +76,12 @@ export default function Home() {
   const addItem = async () => {
     if (!validateForm()) return;
 
-    // Convertir el video a una URL de objeto para su visualización
-    const videoURL = URL.createObjectURL(formData.video);
+    const mediaURL = URL.createObjectURL(formData.media);
 
     const newItem = {
       title: formData.title,
-      video: videoURL,
+      media: formData.media,
+      mediaURL: mediaURL,
       description: formData.description
     };
 
@@ -86,22 +90,63 @@ export default function Home() {
       [activeTab]: [...tasks[activeTab], newItem]
     });
 
-    // Resetear el formulario y cerrar el modal
     setFormData({
       title: '',
-      video: null,
+      media: null,
       description: ''
     });
     setErrors({
       title: '',
-      video: ''
+      media: ''
     });
     setShowModal(false);
   };
 
+  const handleSend = async () => {
+    const lastItem = tasks[activeTab].length ? tasks[activeTab][tasks[activeTab].length - 1] : null;
+  
+    if (!lastItem || !lastItem.media) {
+      setResponse({ error: 'No hay archivo para enviar.' });
+      return;
+    }
+  
+    const endpoint = lastItem.media.type === 'video/mp4' 
+      ? 'http://127.0.0.1:8000/API/Get/Video/Detection' 
+      : 'http://127.0.0.1:8000/API/Get/Image/Detection';
+  
+    const formDataToSend = new FormData();
+    formDataToSend.append('file', lastItem.media);
+  
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        body: formDataToSend
+      });
+  
+      if (!res.ok) {
+        const errorText = await res.text();
+        setResponse({ error: `Error del servidor: ${errorText}` });
+        return;
+      }
+  
+      // Crear un enlace para descargar el archivo
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `segmented_${lastItem.media.name}`; // Nombre del archivo a descargar
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setResponse({ success: 'Archivo segmentado descargado exitosamente.' });
+    } catch (error) {
+      setResponse({ error: `Error al enviar el archivo: ${error.message}` });
+    }
+  };
+  
+
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Navbar */}
       <nav className="bg-white shadow">
         <div className="container mx-auto px-4 py-4 flex justify-between text-black">
           <div className="text-xl font-bold">Segmentation of laparoscopy in videos</div>
@@ -126,7 +171,6 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Main content */}
       <div className="container mx-auto px-4 py-6 text-black">
         <h2 className="text-2xl font-bold mb-4">
           {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
@@ -144,25 +188,25 @@ export default function Home() {
             {tasks[activeTab].map((item, index) => (
               <div key={index} className="bg-white p-4 rounded shadow">
                 <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
-                <video controls className="w-full h-auto mb-2">
-                  <source src={item.video} type="video/mp4" />
-                  Tu navegador no soporta la etiqueta de video.
-                </video>
-                {item.description && (
-                  <p className="text-gray-700">{item.description}</p>
+                {item.media.type === 'video/mp4' ? (
+                  <video controls className="w-full h-auto mb-2">
+                    <source src={item.mediaURL} type="video/mp4" />
+                    Tu navegador no soporta la etiqueta de video.
+                  </video>
+                ) : (
+                  <img src={item.mediaURL} alt={item.title} className="w-full h-auto mb-2" />
                 )}
-                <button
-                  className="bg-gray-200 px-4 py-2 rounded mr-2"
-                > 
-                  Analyze 
+                {item.description && <p className="text-gray-700">{item.description}</p>}
+                <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={handleSend}>
+                  Enviar al Backend
                 </button>
+                {response && <p className="mt-2 text-gray-700">{JSON.stringify(response)}</p>}
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded shadow-lg w-11/12 max-w-md">
@@ -180,15 +224,15 @@ export default function Home() {
               {errors.title && <p className="text-red-500 text-sm">{errors.title}</p>}
             </div>
             <div className="mb-4">
-              <label className="block text-gray-700">Video <span className="text-red-500">*</span></label>
+              <label className="block text-gray-700">Archivo <span className="text-red-500">*</span></label>
               <input
                 type="file"
-                name="video"
-                accept="video/*"
-                className={`border p-2 w-full ${errors.video ? 'border-red-500' : 'border-gray-300'}`}
+                name="media"
+                accept="image/jpeg,video/mp4"
+                className={`border p-2 w-full ${errors.media ? 'border-red-500' : 'border-gray-300'}`}
                 onChange={handleInputChange}
               />
-              {errors.video && <p className="text-red-500 text-sm">{errors.video}</p>}
+              {errors.media && <p className="text-red-500 text-sm">{errors.media}</p>}
             </div>
             <div className="mb-4">
               <label className="block text-black">Descripción</label>
@@ -207,12 +251,12 @@ export default function Home() {
                   setShowModal(false);
                   setFormData({
                     title: '',
-                    video: null,
+                    media: null,
                     description: ''
                   });
                   setErrors({
                     title: '',
-                    video: ''
+                    media: ''
                   });
                 }}
               >
@@ -228,13 +272,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      {/* Footer (Opcional) */}
-      <footer className="bg-white shadow mt-10">
-        <div className="container mx-auto px-4 py-4 text-center">
-          <p className="text-gray-600">&copy; {new Date().getFullYear()} Rodrigo Flores. Todos los derechos reservados.</p>
-        </div>
-      </footer>
     </div>
   );
 }
