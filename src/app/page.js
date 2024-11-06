@@ -111,8 +111,8 @@ export default function Home() {
     }
 
     const endpoint = item.media.type === 'video/mp4' 
-      ? 'http://127.0.0.1:8000/API/Get/Video/Detection' 
-      : 'http://127.0.0.1:8000/API/Get/Image/Detection';
+      ? 'https://fastapi-backend-endoscape.onrender.com/API/Get/Video/Detection' 
+      : 'https://fastapi-backend-endoscape.onrender.com/API/Get/Image/Detection';
 
     const formDataToSend = new FormData();
     formDataToSend.append('file', item.media);
