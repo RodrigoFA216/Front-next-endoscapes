@@ -19,7 +19,6 @@ export default function Home() {
     title: '',
     media: ''
   });
-  const [response, setResponse] = useState(null);
 
   useEffect(() => {
     const storedTasks = localStorage.getItem('tasks');
@@ -82,7 +81,8 @@ export default function Home() {
       title: formData.title,
       media: formData.media,
       mediaURL: mediaURL,
-      description: formData.description
+      description: formData.description,
+      response: null // Añadimos estado de respuesta individual para cada elemento
     };
 
     setTasks({
@@ -102,48 +102,54 @@ export default function Home() {
     setShowModal(false);
   };
 
-  const handleSend = async () => {
-    const lastItem = tasks[activeTab].length ? tasks[activeTab][tasks[activeTab].length - 1] : null;
-  
-    if (!lastItem || !lastItem.media) {
-      setResponse({ error: 'No hay archivo para enviar.' });
+  const handleSend = async (index) => {
+    const item = tasks[activeTab][index];
+
+    if (!item || !item.media) {
+      updateTaskResponse(index, { error: 'No hay archivo para enviar.' });
       return;
     }
-  
-    const endpoint = lastItem.media.type === 'video/mp4' 
+
+    const endpoint = item.media.type === 'video/mp4' 
       ? 'http://127.0.0.1:8000/API/Get/Video/Detection' 
       : 'http://127.0.0.1:8000/API/Get/Image/Detection';
-  
+
     const formDataToSend = new FormData();
-    formDataToSend.append('file', lastItem.media);
-  
+    formDataToSend.append('file', item.media);
+
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
         body: formDataToSend
       });
-  
+
       if (!res.ok) {
         const errorText = await res.text();
-        setResponse({ error: `Error del servidor: ${errorText}` });
+        updateTaskResponse(index, { error: `Error del servidor: ${errorText}` });
         return;
       }
-  
-      // Crear un enlace para descargar el archivo
+
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `segmented_${lastItem.media.name}`; // Nombre del archivo a descargar
+      a.download = `segmented_${item.media.name}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setResponse({ success: 'Archivo segmentado descargado exitosamente.' });
+
+      updateTaskResponse(index, { success: 'Archivo segmentado descargado exitosamente.' });
     } catch (error) {
-      setResponse({ error: `Error al enviar el archivo: ${error.message}` });
+      updateTaskResponse(index, { error: `Error al enviar el archivo: ${error.message}` });
     }
   };
-  
+
+  // Función para actualizar el estado de respuesta de un ítem específico
+  const updateTaskResponse = (index, response) => {
+    const updatedTasks = { ...tasks };
+    updatedTasks[activeTab][index].response = response;
+    setTasks(updatedTasks);
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -160,7 +166,7 @@ export default function Home() {
               Procesar
             </button>
             <button
-              className={`ml-2 px-4 py-2 rounded ${
+              className={`ml-2 px-4 py-2 rounded disabled ${
                 activeTab === 'segmentar' ? 'bg-blue-500 text-white' : 'bg-gray-200'
               }`}
               onClick={() => setActiveTab('segmentar')}
@@ -197,10 +203,14 @@ export default function Home() {
                   <img src={item.mediaURL} alt={item.title} className="w-full h-auto mb-2" />
                 )}
                 {item.description && <p className="text-gray-700">{item.description}</p>}
-                <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={handleSend}>
+                <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => handleSend(index)}>
                   Enviar al Backend
                 </button>
-                {response && <p className="mt-2 text-gray-700">{JSON.stringify(response)}</p>}
+                {item.response && (
+                  <p className={`mt-2 ${item.response.error ? 'text-red-500' : 'text-green-500'}`}>
+                    {item.response.error || item.response.success}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -228,44 +238,29 @@ export default function Home() {
               <input
                 type="file"
                 name="media"
-                accept="image/jpeg,video/mp4"
                 className={`border p-2 w-full ${errors.media ? 'border-red-500' : 'border-gray-300'}`}
                 onChange={handleInputChange}
               />
               {errors.media && <p className="text-red-500 text-sm">{errors.media}</p>}
             </div>
             <div className="mb-4">
-              <label className="block text-black">Descripción</label>
+              <label className="block text-gray-700">Descripción</label>
               <textarea
                 name="description"
-                className="border p-2 w-full border-gray-300 text-black"
-                placeholder="Ingresa una descripción (opcional)"
+                className="border p-2 w-full border-gray-300"
+                placeholder="Ingresa una descripción"
                 value={formData.description}
                 onChange={handleInputChange}
               ></textarea>
             </div>
             <div className="flex justify-end">
               <button
-                className="bg-gray-200 px-4 py-2 rounded mr-2"
-                onClick={() => {
-                  setShowModal(false);
-                  setFormData({
-                    title: '',
-                    media: null,
-                    description: ''
-                  });
-                  setErrors({
-                    title: '',
-                    media: ''
-                  });
-                }}
+                className="bg-gray-300 text-black px-4 py-2 rounded mr-2"
+                onClick={() => setShowModal(false)}
               >
                 Cancelar
               </button>
-              <button
-                className="bg-blue-500 text-white px-4 py-2 rounded"
-                onClick={addItem}
-              >
+              <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={addItem}>
                 Añadir
               </button>
             </div>
